@@ -1,0 +1,121 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+weather = pd.read_csv("local_weather.csv", index_col= "DATE")
+
+#print(weather)
+
+#Goes Column by column and looks for any null values
+#print(weather.apply(pd.isnull).sum()/weather.shape[0])
+
+core_weather = weather[["PRCP","TMAX", "TMIN"]].copy()
+
+core_weather.columns = ["percip" , "temp_max" , "temp_min"]
+#print(core_weather)
+#print(core_weather.apply(pd.isnull).sum()/core_weather.shape[0])
+
+print(core_weather["percip"].value_counts())
+print(core_weather[pd.isnull(core_weather["percip"])])
+
+#Take a look at what happended before and after our NA values
+print(core_weather.loc["03-03-2022":"13-03-2022",:])
+
+#We replace our NaN with zero because most days it hasnt rained
+print(core_weather["percip"].value_counts())
+core_weather["percip"] = core_weather["percip"].fillna(0)
+#print(core_weather[pd.isnull(core_weather["temp_max"])])
+
+#Because they are consecutive days we can use the forward fill command to make the value from the previous value
+#equal to the one on the next value for NaNs
+
+core_weather = core_weather.fillna(method = "ffill")
+core_weather = core_weather.fillna(method = "ffill")
+
+print(core_weather.apply(pd.isnull).sum()/core_weather.shape[0])
+
+print(core_weather.index)
+
+#Allows us to work with time much easier and better
+core_weather.index = pd.to_datetime(core_weather.index, format='%d/%m/%Y')
+print(core_weather.index)
+print(core_weather.index.year)
+
+print(core_weather.apply(lambda x : (x==9999).sum()))
+
+
+#Actually Anaylsing the data
+
+print(core_weather[["temp_max","temp_min"]].plot())
+plt.show()
+core_weather["percip"].plot()
+plt.show()
+
+print(core_weather.groupby(core_weather.index.year).sum()["percip"])
+
+#We want to predict Tommorow's Maximum Temperature Using Machine Learning
+
+core_weather["target"] = core_weather.shift(-1)["temp_max"]
+print(core_weather)
+core_weather = core_weather.iloc[:-1,:].copy()
+print(core_weather)
+
+#Let's do machine learning
+from sklearn.linear_model import Ridge
+
+reg = Ridge(alpha=0.1)
+
+predictors  = ["percip", "temp_max" , "temp_min"]
+
+train = core_weather.loc[:"01-01-2020"]
+test = core_weather.loc["02-01-2020":]
+
+reg.fit(train[predictors],train["target"])
+Ridge(alpha=0.1)
+predictions = reg.predict((test[predictors]))
+from sklearn.metrics import mean_squared_error
+print(mean_squared_error(test["target"], predictions))
+error = mean_squared_error(test["target"], predictions)
+#20.082449365906253 degrees of the actual Temperature on average
+
+combined = pd.concat([test["target"],pd.Series(predictions, index=test.index)], axis=1)
+combined.columns = ["actual" , "predictions"]
+#print(combined)
+
+combined.plot()
+plt.show()
+
+#print(reg.coef_)
+#[-0.05361259  0.8804332   0.07500513]
+
+#Creating a function to make Predictions ,Gives us iterrations
+def create_predictions(predictors , core_weather , reg):
+    train = core_weather.loc[:"01-01-2020"]
+    test = core_weather.loc["02-01-2020":]
+    reg.fit(train[predictors], train["target"])
+    predictions = reg.predict((test[predictors]))
+    error = mean_squared_error(test["target"], predictions)
+    combined = pd.concat([test["target"], pd.Series(predictions, index=test.index)], axis=1)
+    combined.columns = ["actual", "predictions"]
+    return error ,combined
+
+core_weather["month_max"] = core_weather["temp_max"].rolling(30).mean()
+print(core_weather)
+core_weather = core_weather.iloc[30:,:].copy()
+core_weather["month_day_max"] = core_weather["month_max"] / core_weather["temp_max"]
+core_weather["max_min"] = core_weather["temp_max"] / core_weather["temp_min"]
+predictors = ["percip", "temp_max" , "temp_min" , "month_max", "month_day_max" , "max_min"]
+error,combined = create_predictions(predictors,core_weather,reg)
+print(error)
+#19.18539266102021 Reduced our error
+combined.plot()
+plt.show()
+
+core_weather["monthly_avg"] = core_weather["temp_max"].groupby(core_weather.index.month).apply(lambda x: x.expanding(1).mean())
+print(core_weather)
+
+core_weather["day_of_year_avg"] = core_weather["temp_max"].groupby(core_weather.index.day_of_year).apply(lambda x: x.expanding(1).mean())
+predictors = ["percip", "temp_max" , "temp_min" , "month_max", "month_day_max" , "max_min","day_of_year_avg"]
+error,combined = create_predictions(predictors,core_weather,reg)
+print(error)
+#18.493198234285444 Our error is going down
+print(reg.coef_)
+print(core_weather.corr()["target"])
