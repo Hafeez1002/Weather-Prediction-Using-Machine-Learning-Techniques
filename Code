@@ -17,7 +17,6 @@ print(core_weather["percip"].value_counts())
 print(core_weather[pd.isnull(core_weather["percip"])])
 
 #Take a look at what happended before and after our NA values
-print(core_weather.loc["03-03-2022":"13-03-2022",:])
 
 #We replace our NaN with zero because most days it hasnt rained
 print(core_weather["percip"].value_counts())
@@ -49,12 +48,12 @@ plt.show()
 core_weather["percip"].plot()
 plt.show()
 
-print(core_weather.groupby(core_weather.index.year).sum()["percip"])
+#print(core_weather.groupby(core_weather.index.year).sum()["percip"])
 
 #We want to predict Tommorow's Maximum Temperature Using Machine Learning
 
 core_weather["target"] = core_weather.shift(-1)["temp_max"]
-print(core_weather)
+#print(core_weather)
 core_weather = core_weather.iloc[:-1,:].copy()
 print(core_weather)
 
@@ -119,3 +118,4 @@ print(error)
 #18.493198234285444 Our error is going down
 print(reg.coef_)
 print(core_weather.corr()["target"])
+
